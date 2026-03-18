@@ -101,7 +101,7 @@ Pricing
 
 ---
 
-### Mashina chiqishi
+### Mashina chiqishi \
 
 1. Operator mashina raqamini qidiradi
 2. Chiqish vaqti yoziladi
