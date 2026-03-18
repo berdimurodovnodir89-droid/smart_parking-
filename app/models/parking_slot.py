@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String
-from app.database.db import Base
+from app.database.base import Base
 
 
 class ParkingSlot(Base):

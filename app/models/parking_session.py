@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, ForeignKey, DateTime, String, Float
 from datetime import datetime
-from app.database.db import Base
+from app.database.base import Base
 
 
 class ParkingSession(Base):
