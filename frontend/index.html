@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<title>Smart Parking</title>
+
+<style>
+body {
+  font-family: Arial;
+  background: #0f172a;
+  color: white;
+  padding: 20px;
+}
+
+h1 {
+  text-align: center;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.card {
+  background: #1e293b;
+  padding: 15px;
+  border-radius: 10px;
+}
+
+input {
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
+  border-radius: 6px;
+  border: none;
+}
+
+button {
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
+  background: #22c55e;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.result {
+  margin-top: 10px;
+  background: #020617;
+  padding: 10px;
+  border-radius: 6px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🚗 Smart Parking</h1>
+
+<div class="grid">
+
+  <!-- ENTER -->
+  <div class="card">
+    <h3>Parkingga kirish</h3>
+    <input id="enterPlate" placeholder="01A777AA">
+    <button id="enterBtn">Kirish</button>
+    <div class="result" id="enterResult"></div>
+  </div>
+
+  <!-- EXIT -->
+  <div class="card">
+    <h3>Parkingdan chiqish</h3>
+    <input id="exitPlate" placeholder="01A777AA">
+    <button id="exitBtn">Chiqish</button>
+    <div class="result" id="exitResult"></div>
+  </div>
+
+  <!-- ACTIVE -->
+  <div class="card">
+    <h3>Aktiv mashinalar</h3>
+    <button id="activeBtn">Yangilash</button>
+    <div class="result" id="activeResult"></div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="card">
+    <h3>Dashboard</h3>
+    <button id="dashboardBtn">Yangilash</button>
+    <div class="result" id="dashboardResult"></div>
+  </div>
+
+</div>
+
+<script>
+const API = "http://127.0.0.1:8000";
+
+// ENTER
+document.getElementById("enterBtn").addEventListener("click", async () => {
+  const plate = document.getElementById("enterPlate").value;
+
+  const res = await fetch(API + "/parking/enter", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ plate_number: plate })
+  });
+
+  const data = await res.json();
+
+  document.getElementById("enterResult").innerText =
+    "Slot: " + data.slot;
+});
+
+// EXIT
+document.getElementById("exitBtn").addEventListener("click", async () => {
+  const plate = document.getElementById("exitPlate").value;
+
+  const res = await fetch(API + "/parking/exit", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ plate_number: plate })
+  });
+
+  const data = await res.json();
+
+  document.getElementById("exitResult").innerText =
+    "Narx: " + data.price + " so'm";
+});
+
+// ACTIVE
+document.getElementById("activeBtn").addEventListener("click", async () => {
+  const res = await fetch(API + "/parking/active");
+  const data = await res.json();
+
+  let html = "";
+
+  data.forEach(item => {
+    html += `Car: ${item.car_id} | Slot: ${item.slot_id}\n`;
+  });
+
+  document.getElementById("activeResult").innerText = html;
+});
+
+// DASHBOARD
+document.getElementById("dashboardBtn").addEventListener("click", async () => {
+  const res = await fetch(API + "/parking/dashboard");
+  const data = await res.json();
+
+  document.getElementById("dashboardResult").innerText = `
+Jami: ${data.total_slots}
+Bo'sh: ${data.free_slots}
+Band: ${data.occupied_slots}
+Aktiv: ${data.active_sessions}
+Daromad: ${data.total_revenue}
+`;
+});
+</script>
+
+</body>
+</html>
+<script>
+const API = "http://127.0.0.1:8000";
+
+// ENTER
+document.getElementById("enterBtn").addEventListener("click", async () => {
+  const plate = document.getElementById("enterPlate").value;
+
+  const res = await fetch(API + "/parking/enter", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ plate_number: plate })
+  });
+
+  const data = await res.json();
+  document.getElementById("enterResult").innerText = "Slot: " + data.slot;
+});
+
+// EXIT
+document.getElementById("exitBtn").addEventListener("click", async () => {
+  const plate = document.getElementById("exitPlate").value;
+
+  const res = await fetch(API + "/parking/exit", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ plate_number: plate })
+  });
+
+  const data = await res.json();
+  document.getElementById("exitResult").innerText = "Narx: " + data.price;
+});
+
+// ACTIVE
+document.getElementById("activeBtn").addEventListener("click", async () => {
+  const res = await fetch(API + "/parking/active");
+  const data = await res.json();
+
+  let html = "";
+  data.forEach(item => {
+    html += `Car: ${item.car_id} | Slot: ${item.slot_id}\n`;
+  });
+
+  document.getElementById("activeResult").innerText = html;
+});
+
+// DASHBOARD
+document.getElementById("dashboardBtn").addEventListener("click", async () => {
+  const res = await fetch(API + "/parking/dashboard");
+  const data = await res.json();
+
+  document.getElementById("dashboardResult").innerText = `
+Jami: ${data.total_slots}
+Bo'sh: ${data.free_slots}
+Band: ${data.occupied_slots}
+Aktiv: ${data.active_sessions}
+Daromad: ${data.total_revenue}
+`;
+});
+</script>
+

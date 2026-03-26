@@ -188,3 +188,31 @@ async def get_dashboard(db: AsyncSession):
         "free": free_count,
         "total_income": total_income,
     }
+
+
+async def get_active_sessions(db: AsyncSession):
+    result = await db.execute(
+        select(ParkingSession).join(Car).where(ParkingSession.status == "active")
+    )
+
+    sessions = result.scalars().all()
+
+    data = []
+    for s in sessions:
+        data.append(
+            {
+                "plate_number": s.car.plate_number,
+                "slot": s.slot_id,
+                "entry_time": str(s.entry_time),
+            }
+        )
+
+    return data
+
+
+async def get_free_slots(db: AsyncSession):
+    result = await db.execute(select(ParkingSlot).where(ParkingSlot.status == "free"))
+
+    slots = result.scalars().all()
+
+    return [{"id": s.id, "slot_number": s.slot_number, "floor": s.floor} for s in slots]

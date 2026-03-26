@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, ForeignKey, DateTime, String, Float
 from datetime import datetime
 from app.database.base import Base
+from sqlalchemy.orm import relationship
 
 
 class ParkingSession(Base):
@@ -17,3 +18,6 @@ class ParkingSession(Base):
     total_price = Column(Float, nullable=True)
 
     status = Column(String, default="active")
+
+    car = relationship("Car", back_populates="parking_sessions")
+    slot = relationship("ParkingSlot", back_populates="parking_sessions")
