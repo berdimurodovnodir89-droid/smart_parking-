@@ -1,6 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlalchemy import select
-from datetime import datetime
+from datetime import datetime, date
+
 import math
 
 from app.models.car import Car
@@ -8,12 +10,11 @@ from app.models.parking_slot import ParkingSlot
 from app.models.parking_session import ParkingSession
 from app.models.payment import Payment
 
-
 PRICE_PER_HOUR = 5000
 
 
 # ==============================
-# SLOTLARNI YARATISH
+# SLOT INIT
 # ==============================
 async def ensure_slots_exist(db: AsyncSession, total_slots: int = 10):
     result = await db.execute(select(ParkingSlot))
@@ -26,15 +27,17 @@ async def ensure_slots_exist(db: AsyncSession, total_slots: int = 10):
 
 
 # ==============================
-# BO‘SH SLOT OLISH
+# FREE SLOT (TARTIBLI)
 # ==============================
 async def get_free_slot(db: AsyncSession):
-    result = await db.execute(select(ParkingSlot).where(ParkingSlot.status == "free"))
+    result = await db.execute(
+        select(ParkingSlot).where(ParkingSlot.status == "free").order_by(ParkingSlot.id)
+    )
     return result.scalars().first()
 
 
 # ==============================
-# CAR TOPISH/YARATISH
+# CAR
 # ==============================
 async def get_or_create_car(db: AsyncSession, plate_number: str):
     result = await db.execute(select(Car).where(Car.plate_number == plate_number))
@@ -50,12 +53,23 @@ async def get_or_create_car(db: AsyncSession, plate_number: str):
 
 
 # ==============================
-# PARKINGGA KIRISH
+# ENTER (VALIDATION BOR)
 # ==============================
 async def start_parking(db: AsyncSession, plate_number: str):
     await ensure_slots_exist(db)
 
     car = await get_or_create_car(db, plate_number)
+
+    # ❗ CHECK: mashina ichkaridami
+    existing = await db.execute(
+        select(ParkingSession).where(
+            ParkingSession.car_id == car.id, ParkingSession.status == "active"
+        )
+    )
+
+    if existing.scalars().first():
+        return {"error": "Mashina allaqachon parkingda"}
+
     slot = await get_free_slot(db)
 
     if not slot:
@@ -65,7 +79,7 @@ async def start_parking(db: AsyncSession, plate_number: str):
         car_id=car.id,
         slot_id=slot.id,
         entry_time=datetime.utcnow(),
-        status="active",  # 🔥 MUHIM
+        status="active",
     )
 
     slot.status = "occupied"
@@ -82,38 +96,35 @@ async def start_parking(db: AsyncSession, plate_number: str):
 
 
 # ==============================
-# PARKINGDAN CHIQISH
+# EXIT (VALIDATION BOR)
 # ==============================
 async def end_parking(db: AsyncSession, plate_number: str):
     result = await db.execute(
         select(ParkingSession)
+        .options(selectinload(ParkingSession.car), selectinload(ParkingSession.slot))
         .join(Car)
         .where(Car.plate_number == plate_number)
         .where(ParkingSession.status == "active")
     )
+
     session = result.scalars().first()
 
     if not session:
-        return {"error": "Mashina topilmadi yoki allaqachon chiqib ketgan"}
+        return {"error": "Mashina parkingda emas yoki chiqib bo‘lgan"}
 
     session.exit_time = datetime.utcnow()
 
     duration = session.exit_time - session.entry_time
-    hours = math.ceil(duration.total_seconds() / 3600)  # 🔥 to‘g‘rilangan
+    hours = math.ceil(duration.total_seconds() / 3600)
 
     total_price = hours * PRICE_PER_HOUR
 
     session.total_price = total_price
     session.status = "completed"
 
-    # SLOTNI BO‘SHATISH
-    result = await db.execute(
-        select(ParkingSlot).where(ParkingSlot.id == session.slot_id)
-    )
-    slot = result.scalars().first()
-    slot.status = "free"
+    # SLOT BO‘SHATISH
+    session.slot.status = "free"
 
-    # PAYMENT
     payment = Payment(session_id=session.id, amount=total_price)
 
     db.add(payment)
@@ -127,36 +138,35 @@ async def end_parking(db: AsyncSession, plate_number: str):
 
 
 # ==============================
-# AKTIV SESSIONLAR
+# ACTIVE (OPTIMIZED)
 # ==============================
 async def get_active_sessions(db: AsyncSession):
     result = await db.execute(
-        select(ParkingSession).where(ParkingSession.status == "active")
+        select(ParkingSession)
+        .options(selectinload(ParkingSession.car), selectinload(ParkingSession.slot))
+        .where(ParkingSession.status == "active")
     )
+
     sessions = result.scalars().all()
 
-    data = []
-
-    for s in sessions:
-        car_result = await db.execute(select(Car).where(Car.id == s.car_id))
-        car = car_result.scalars().first()
-
-        data.append(
-            {
-                "plate_number": car.plate_number,
-                "slot_id": s.slot_id,
-                "entry_time": s.entry_time,
-            }
-        )
-
-    return data
+    return [
+        {
+            "plate_number": s.car.plate_number,
+            "slot": s.slot.slot_number,
+            "entry_time": s.entry_time,
+        }
+        for s in sessions
+    ]
 
 
 # ==============================
-# BO‘SH SLOTLAR
+# FREE SLOTS (TARTIBLI)
 # ==============================
 async def get_free_slots(db: AsyncSession):
-    result = await db.execute(select(ParkingSlot).where(ParkingSlot.status == "free"))
+    result = await db.execute(
+        select(ParkingSlot).where(ParkingSlot.status == "free").order_by(ParkingSlot.id)
+    )
+
     slots = result.scalars().all()
 
     return [{"slot_number": s.slot_number, "floor": s.floor} for s in slots]
@@ -165,7 +175,20 @@ async def get_free_slots(db: AsyncSession):
 # ==============================
 # DASHBOARD
 # ==============================
+
+from datetime import datetime, date
+from sqlalchemy import select, func
+
+from datetime import datetime, date, timedelta
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.parking_slot import ParkingSlot
+from app.models.payment import Payment
+
+
 async def get_dashboard(db: AsyncSession):
+    # ===== SLOTLAR =====
     total = await db.execute(select(ParkingSlot))
     total_slots = len(total.scalars().all())
 
@@ -177,42 +200,26 @@ async def get_dashboard(db: AsyncSession):
     free = await db.execute(select(ParkingSlot).where(ParkingSlot.status == "free"))
     free_count = len(free.scalars().all())
 
-    payments = await db.execute(select(Payment))
-    payment_list = payments.scalars().all()
+    # ===== BUGUNGI VAQT ORALIG‘I =====
+    today = date.today()
+    start = datetime.combine(today, datetime.min.time())  # 00:00
+    end = start + timedelta(days=1)  # ertaga 00:00
 
-    total_income = sum(p.amount for p in payment_list) if payment_list else 0
+    # ===== FAQAT BUGUNGI DAROMAD =====
+    result = await db.execute(
+        select(func.sum(Payment.amount))
+        .where(Payment.paid_at >= start)
+        .where(Payment.paid_at < end)
+    )
+
+    today_income = result.scalar()
+
+    if today_income is None:
+        today_income = 0
 
     return {
         "total_slots": total_slots,
         "occupied": occupied_count,
         "free": free_count,
-        "total_income": total_income,
+        "today_income": today_income,
     }
-
-
-async def get_active_sessions(db: AsyncSession):
-    result = await db.execute(
-        select(ParkingSession).join(Car).where(ParkingSession.status == "active")
-    )
-
-    sessions = result.scalars().all()
-
-    data = []
-    for s in sessions:
-        data.append(
-            {
-                "plate_number": s.car.plate_number,
-                "slot": s.slot_id,
-                "entry_time": str(s.entry_time),
-            }
-        )
-
-    return data
-
-
-async def get_free_slots(db: AsyncSession):
-    result = await db.execute(select(ParkingSlot).where(ParkingSlot.status == "free"))
-
-    slots = result.scalars().all()
-
-    return [{"id": s.id, "slot_number": s.slot_number, "floor": s.floor} for s in slots]

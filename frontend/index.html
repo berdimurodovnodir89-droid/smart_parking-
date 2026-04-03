@@ -1,19 +1,31 @@
 <!DOCTYPE html>
-<html lang="uz">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Smart Parking</title>
+<title>Smart Parking System</title>
 
 <style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: system-ui;
+}
+
 body {
-  font-family: Arial;
   background: #0f172a;
-  color: white;
+  color: #e2e8f0;
   padding: 20px;
+}
+
+.container {
+  max-width: 1000px;
+  margin: auto;
 }
 
 h1 {
   text-align: center;
+  margin-bottom: 30px;
 }
 
 .grid {
@@ -24,198 +36,257 @@ h1 {
 
 .card {
   background: #1e293b;
-  padding: 15px;
-  border-radius: 10px;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 0 20px rgba(0,0,0,0.3);
 }
 
 input {
   width: 100%;
   padding: 10px;
   margin-top: 10px;
-  border-radius: 6px;
+  border-radius: 8px;
   border: none;
+  outline: none;
 }
 
 button {
-  width: 100%;
-  padding: 10px;
   margin-top: 10px;
-  background: #22c55e;
-  color: white;
+  padding: 10px;
+  width: 100%;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
+  background: #3b82f6;
+  color: white;
   cursor: pointer;
 }
 
-.result {
+button:hover {
+  background: #2563eb;
+}
+
+.list {
   margin-top: 10px;
-  background: #020617;
-  padding: 10px;
+}
+
+.item {
+  padding: 8px;
+  background: #334155;
+  margin-top: 5px;
   border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.badge {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.free {
+  background: #16a34a;
+}
+
+.occupied {
+  background: #dc2626;
+}
+
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 15px;
+  border-radius: 8px;
+  background: #22c55e;
+  color: black;
+  display: none;
+}
+
+.error {
+  background: #ef4444;
 }
 </style>
 </head>
 
 <body>
 
-<h1>🚗 Smart Parking</h1>
+<div class="container">
+  <h1>🚗 Smart Parking System</h1>
 
-<div class="grid">
+  <div class="grid">
 
-  <!-- ENTER -->
-  <div class="card">
-    <h3>Parkingga kirish</h3>
-    <input id="enterPlate" placeholder="01A777AA">
-    <button id="enterBtn">Kirish</button>
-    <div class="result" id="enterResult"></div>
+    <div class="card">
+      <h3>Enter Parking</h3>
+      <input id="enterPlate" placeholder="Plate number">
+      <button onclick="enterParking()">Enter</button>
+    </div>
+
+    <div class="card">
+      <h3>Exit Parking</h3>
+      <input id="exitPlate" placeholder="Plate number">
+      <button onclick="exitParking()">Exit</button>
+    </div>
+
+    <div class="card">
+      <h3>Active Cars</h3>
+      <button onclick="getActive()">Refresh</button>
+      <div id="activeList" class="list"></div>
+    </div>
+
+    <div class="card">
+      <h3>Free Slots</h3>
+      <button onclick="getFreeSlots()">Refresh</button>
+      <div id="slotsList" class="list"></div>
+    </div>
+
+    <!-- 🔥 YANGI DASHBOARD -->
+    <div class="card">
+      <h3>Dashboard</h3>
+      <button onclick="getDashboard()">Refresh</button>
+      <div id="dashboard" class="list"></div>
+    </div>
+
   </div>
-
-  <!-- EXIT -->
-  <div class="card">
-    <h3>Parkingdan chiqish</h3>
-    <input id="exitPlate" placeholder="01A777AA">
-    <button id="exitBtn">Chiqish</button>
-    <div class="result" id="exitResult"></div>
-  </div>
-
-  <!-- ACTIVE -->
-  <div class="card">
-    <h3>Aktiv mashinalar</h3>
-    <button id="activeBtn">Yangilash</button>
-    <div class="result" id="activeResult"></div>
-  </div>
-
-  <!-- DASHBOARD -->
-  <div class="card">
-    <h3>Dashboard</h3>
-    <button id="dashboardBtn">Yangilash</button>
-    <div class="result" id="dashboardResult"></div>
-  </div>
-
 </div>
 
-<script>
-const API = "http://127.0.0.1:8000";
+<div id="toast" class="toast"></div>
 
-// ENTER
-document.getElementById("enterBtn").addEventListener("click", async () => {
+<script>
+const BASE_URL = "http://127.0.0.1:8000";
+
+function showToast(msg, isError=false) {
+  const t = document.getElementById("toast");
+  t.innerText = msg;
+  t.style.display = "block";
+  t.className = "toast " + (isError ? "error" : "");
+  setTimeout(()=> t.style.display = "none", 3000);
+}
+
+// ================= ENTER =================
+async function enterParking() {
   const plate = document.getElementById("enterPlate").value;
 
-  const res = await fetch(API + "/parking/enter", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ plate_number: plate })
-  });
+  try {
+    const res = await fetch(`${BASE_URL}/parking/enter`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({plate_number: plate})
+    });
 
-  const data = await res.json();
+    const data = await res.json();
 
-  document.getElementById("enterResult").innerText =
-    "Slot: " + data.slot;
-});
+    if (data.error) {
+      showToast(data.error, true);
+      return;
+    }
 
-// EXIT
-document.getElementById("exitBtn").addEventListener("click", async () => {
+    showToast(`Kirdi | Slot: ${data.slot}`);
+    getActive();
+    getFreeSlots();
+    getDashboard();
+
+  } catch {
+    showToast("Server error", true);
+  }
+}
+
+// ================= EXIT =================
+async function exitParking() {
   const plate = document.getElementById("exitPlate").value;
 
-  const res = await fetch(API + "/parking/exit", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ plate_number: plate })
-  });
+  try {
+    const res = await fetch(`${BASE_URL}/parking/exit`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({plate_number: plate})
+    });
 
+    const data = await res.json();
+
+    if (data.error) {
+      showToast(data.error, true);
+      return;
+    }
+
+    showToast(`To'lov: ${data.total_price} so'm`);
+    getActive();
+    getFreeSlots();
+    getDashboard();
+
+  } catch {
+    showToast("Server error", true);
+  }
+}
+
+// ================= ACTIVE =================
+async function getActive() {
+  const res = await fetch(`${BASE_URL}/parking/active`);
   const data = await res.json();
 
-  document.getElementById("exitResult").innerText =
-    "Narx: " + data.price + " so'm";
-});
-
-// ACTIVE
-document.getElementById("activeBtn").addEventListener("click", async () => {
-  const res = await fetch(API + "/parking/active");
-  const data = await res.json();
-
-  let html = "";
+  const list = document.getElementById("activeList");
+  list.innerHTML = "";
 
   data.forEach(item => {
-    html += `Car: ${item.car_id} | Slot: ${item.slot_id}\n`;
+    list.innerHTML += `
+      <div class="item">
+        <span>${item.plate_number}</span>
+        <span class="badge occupied">${item.slot}</span>
+      </div>
+    `;
   });
+}
 
-  document.getElementById("activeResult").innerText = html;
-});
-
-// DASHBOARD
-document.getElementById("dashboardBtn").addEventListener("click", async () => {
-  const res = await fetch(API + "/parking/dashboard");
+// ================= FREE =================
+async function getFreeSlots() {
+  const res = await fetch(`${BASE_URL}/parking/free-slots`);
   const data = await res.json();
 
-  document.getElementById("dashboardResult").innerText = `
-Jami: ${data.total_slots}
-Bo'sh: ${data.free_slots}
-Band: ${data.occupied_slots}
-Aktiv: ${data.active_sessions}
-Daromad: ${data.total_revenue}
-`;
-});
+  const list = document.getElementById("slotsList");
+  list.innerHTML = "";
+
+  data.forEach(item => {
+    list.innerHTML += `
+      <div class="item">
+        <span>Slot</span>
+        <span class="badge free">${item.slot_number}</span>
+      </div>
+    `;
+  });
+}
+
+// ================= DASHBOARD =================
+async function getDashboard() {
+  const res = await fetch(`${BASE_URL}/parking/dashboard`);
+  const data = await res.json();
+
+  const d = document.getElementById("dashboard");
+
+  d.innerHTML = `
+    <div class="item">
+      <span>Total slots</span>
+      <span>${data.total_slots}</span>
+    </div>
+    <div class="item">
+      <span>Occupied</span>
+      <span class="badge occupied">${data.occupied}</span>
+    </div>
+    <div class="item">
+      <span>Free</span>
+      <span class="badge free">${data.free}</span>
+    </div>
+    <div class="item">
+      <span>💰 Today Income</span>
+      <span>${data.today_income} so'm</span>
+    </div>
+  `;
+}
+
+// AUTO LOAD
+getActive();
+getFreeSlots();
+getDashboard();
 </script>
 
 </body>
 </html>
-<script>
-const API = "http://127.0.0.1:8000";
-
-// ENTER
-document.getElementById("enterBtn").addEventListener("click", async () => {
-  const plate = document.getElementById("enterPlate").value;
-
-  const res = await fetch(API + "/parking/enter", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ plate_number: plate })
-  });
-
-  const data = await res.json();
-  document.getElementById("enterResult").innerText = "Slot: " + data.slot;
-});
-
-// EXIT
-document.getElementById("exitBtn").addEventListener("click", async () => {
-  const plate = document.getElementById("exitPlate").value;
-
-  const res = await fetch(API + "/parking/exit", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ plate_number: plate })
-  });
-
-  const data = await res.json();
-  document.getElementById("exitResult").innerText = "Narx: " + data.price;
-});
-
-// ACTIVE
-document.getElementById("activeBtn").addEventListener("click", async () => {
-  const res = await fetch(API + "/parking/active");
-  const data = await res.json();
-
-  let html = "";
-  data.forEach(item => {
-    html += `Car: ${item.car_id} | Slot: ${item.slot_id}\n`;
-  });
-
-  document.getElementById("activeResult").innerText = html;
-});
-
-// DASHBOARD
-document.getElementById("dashboardBtn").addEventListener("click", async () => {
-  const res = await fetch(API + "/parking/dashboard");
-  const data = await res.json();
-
-  document.getElementById("dashboardResult").innerText = `
-Jami: ${data.total_slots}
-Bo'sh: ${data.free_slots}
-Band: ${data.occupied_slots}
-Aktiv: ${data.active_sessions}
-Daromad: ${data.total_revenue}
-`;
-});
-</script>
-

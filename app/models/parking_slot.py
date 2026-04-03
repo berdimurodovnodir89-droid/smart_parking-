@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String
+from sqlalchemy.orm import relationship
 from app.database.base import Base
 
 
@@ -9,3 +10,5 @@ class ParkingSlot(Base):
     slot_number = Column(Integer, unique=True, nullable=False)
     floor = Column(Integer, default=1)
     status = Column(String, default="free")
+
+    parking_sessions = relationship("ParkingSession", back_populates="slot")
